@@ -9,46 +9,69 @@ jobs:
   build:
     name: Build Native iOS IPA
     runs-on: macos-14
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Restore Complete Upstream Vendor Files
+      - name: Restore Clean Upstream Files
         run: |
-          echo "Restoring upstream vendor files..."
+          echo "Restoring clean upstream repository files..."
           git clone --depth 1 https://github.com/c22dev/muguet.git upstream_muguet
           mkdir -p muguet-0.1/vendor
           cp -r upstream_muguet/vendor/* muguet-0.1/vendor/ || true
+          cp upstream_muguet/ios/Launcher.swift muguet-0.1/ios/Launcher.swift
+          cp upstream_muguet/make-ios.sh muguet-0.1/make-ios.sh
+          cp upstream_muguet/build.rs muguet-0.1/build.rs
           rm -rf upstream_muguet
 
-      - name: Clean and Fix Swift Files for iOS 15+
+      - name: Fix Swift Syntax in Launcher.swift
         run: |
           python3 -c "
-          import pathlib, re
-
-          for p in pathlib.Path('.').rglob('*.swift'):
-              content = p.read_text(encoding='utf-8')
-              orig = content
-              # 1. Replace any glassProminent style with standard borderedProminent
-              content = content.replace('.glassProminent', '.borderedProminent')
-              content = content.replace('glassProminent', 'borderedProminent')
-              # 2. Fix the iOS 26 style conditional block to always use borderedProminent
-              pattern = r'if #available\(iOS 26\.0, \*\)\s*\{\s*button\.buttonStyle\([^)]+\)\s*\}\s*else\s*\{\s*button\.buttonStyle\([^)]+\)\s*\}'
-              content = re.sub(pattern, 'button.buttonStyle(.borderedProminent)', content)
-              if content != orig:
-                  p.write_text(content, encoding='utf-8')
-                  print(f'Successfully fixed: {p}')
+          import re, pathlib
+          file_path = pathlib.Path('muguet-0.1/ios/Launcher.swift')
+          content = file_path.read_text(encoding='utf-8')
+          
+          # Replace playButton with clean, valid SwiftUI
+          clean_button = '''    @ViewBuilder var playButton: some View {\n        Button(action: start) {\n            Text(\"Play\").font(.title3.weight(.semibold)).frame(maxWidth: 220)\n        }\n        .controlSize(.large)\n        .buttonStyle(.borderedProminent)\n    }'''
+          pattern = r'@ViewBuilder\s+var\s+playButton:\s+some\s+View\s*\{[\s\S]*?func\s+start\(\)'
+          replacement = clean_button + '\n\n    func start()'
+          content = re.sub(pattern, replacement, content)
+          
+          content = content.replace('.glassProminent', '.borderedProminent')
+          content = content.replace('glassProminent', 'borderedProminent')
+          file_path.write_text(content, encoding='utf-8')
+          print('Successfully patched Launcher.swift')
           "
-          echo "Swift check:"
-          grep -n "buttonStyle" muguet-0.1/ios/Launcher.swift || true
+          echo "Checking Launcher.swift playButton:"
+          sed -n '180,205p' muguet-0.1/ios/Launcher.swift
 
-      - name: Patch Build Script for Verbose Logging
+      - name: Patch Build Scripts for CI
         run: |
-          # Patch make-ios.sh: remove -quiet to see full Xcode logs & fix cp for non-APFS
-          sed -i.bak 's/xcodebuild -quiet/xcodebuild/g' muguet-0.1/make-ios.sh || true
-          sed -i.bak 's/cp -cRp/cp -Rp/g' muguet-0.1/make-ios.sh || true
-          sed -i.bak 's/TOOLCHAIN=1.98.1/TOOLCHAIN=stable/g' muguet-0.1/make-ios.sh || true
-          sed -i.bak 's/"+\$TOOLCHAIN"//g' muguet-0.1/make-ios.sh || true
+          python3 -c "
+          import pathlib
+          
+          # 1. Patch make-ios.sh
+          sh_path = pathlib.Path('muguet-0.1/make-ios.sh')
+          sh_text = sh_path.read_text(encoding='utf-8')
+          sh_text = sh_text.replace('export PATH=\"/opt/homebrew/opt/rustup/bin:\$PATH\"', 'export PATH=\"\$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:\$PATH\"')
+          sh_text = sh_text.replace('cp -cRp', 'cp -Rp')
+          sh_text = sh_text.replace('xcodebuild -quiet', 'xcodebuild')
+          sh_text = sh_text.replace('cargo \"+\$TOOLCHAIN\"', 'cargo')
+          sh_path.write_text(sh_text, encoding='utf-8')
+          print('Patched make-ios.sh')
+          
+          # 2. Patch build.rs
+          rs_path = pathlib.Path('muguet-0.1/build.rs')
+          rs_text = rs_path.read_text(encoding='utf-8')
+          old_run = 'let status = Command::new(&swiftc)'
+          new_run = 'let output = Command::new(&swiftc)'
+          if old_run in rs_text:
+              rs_text = rs_text.replace('.status()', '.output()').replace(old_run, new_run)
+              rs_text = rs_text.replace('assert!(status.success(), \"swiftc failed\");', 'if !output.status.success() { eprintln!(\"=== SWIFTC ERROR ===\\n{}\", String::from_utf8_lossy(&output.stderr)); panic!(\"swiftc failed\"); }')
+              rs_path.write_text(rs_text, encoding='utf-8')
+              print('Patched build.rs')
+          "
 
       - name: Install Dependencies
         run: |
@@ -56,9 +79,8 @@ jobs:
 
       - name: Setup Rust & iOS Target
         run: |
-          rustup toolchain install 1.98.1 || true
-          rustup target add aarch64-apple-ios --toolchain 1.98.1 || true
-          rustup target add aarch64-apple-ios || true
+          rustup target add aarch64-apple-ios
+          rustup default stable || true
 
       - name: Run Build Script and Package IPA
         run: |
@@ -69,7 +91,8 @@ jobs:
       - name: Locate and Collect .IPA File
         run: |
           mkdir -p output_ipa
-          find . -name "*.ipa" -exec cp -v {} output_ipa/ \;
+          find . -name '*.ipa' -exec cp -v {} output_ipa/ \;
+          echo 'Collected files:'
           ls -la output_ipa/
 
       - name: Upload Ready iOS IPA
