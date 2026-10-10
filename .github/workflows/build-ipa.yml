@@ -1,5 +1,3 @@
-تم تعديل سطر التحميل وإزالة --id عشان يشتغل معك بدون أخطاء.
-تفضل الكود جاهز بالكامل للنسخ واللصق:
 name: Build Muguet iOS IPA (Native GTA V Port)
 
 on:
@@ -109,4 +107,3 @@ jobs:
           name: Muguet-GTAV-iOS-IPA
           path: output_ipa/*.ipa
           retention-days: 14
-
