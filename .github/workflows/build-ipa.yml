@@ -19,11 +19,38 @@ jobs:
           cp -r upstream_muguet/vendor/* muguet-0.1/vendor/ || true
           rm -rf upstream_muguet
 
-      - name: Fix Swift Syntax Error in Launcher.swift
+      - name: Clean and Patch Launcher.swift View
         run: |
-          # تصحيح خطأ glassProminent المتروك في سورس المطور
-          find muguet-0.1 -name "Launcher.swift" -exec sed -i '' 's/\.glassProminent/\.borderedProminent/g' {} +
-          find muguet-0.1 -name "Launcher.swift" -exec sed -i '' 's/iOS 26\.0/iOS 17\.0/g' {} +
+          python3 -c '
+          import os
+          path = "muguet-0.1/ios/Launcher.swift"
+          if os.path.exists(path):
+              with open(path, "r") as f:
+                  content = f.read()
+              bad_block = """    @ViewBuilder var playButton: some View {
+        let button = Button(action: start) {
+            Text("Play").font(.title3.weight(.semibold)).frame(maxWidth: 220)
+        }
+        .controlSize(.large)
+        if #available(iOS 26.0, *) {
+            button.buttonStyle(.glassProminent)
+        } else {
+            button.buttonStyle(.borderedProminent)
+        }
+    }"""
+              good_block = """    @ViewBuilder var playButton: some View {
+        Button(action: start) {
+            Text("Play").font(.title3.weight(.semibold)).frame(maxWidth: 220)
+        }
+        .controlSize(.large)
+        .buttonStyle(.borderedProminent)
+    }"""
+              content = content.replace(bad_block, good_block)
+              content = content.replace(".glassProminent", ".borderedProminent")
+              with open(path, "w") as f:
+                  f.write(content)
+              print("Patched Launcher.swift successfully")
+          '
 
       - name: Install Dependencies (xcodegen)
         run: |
@@ -46,7 +73,7 @@ jobs:
       - name: Locate and Collect .IPA File
         run: |
           mkdir -p output_ipa
-          find . -name "*.ipa" -exec cp {} output_ipa/ \;
+          find . -name "*.ipa" -exec cp {} output_ipa/ ;
           ls -la output_ipa/
 
       - name: Upload Ready iOS IPA
