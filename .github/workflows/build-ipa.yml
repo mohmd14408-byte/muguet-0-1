@@ -14,6 +14,11 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - name: Install gdown and Download game.zip
+        run: |
+          pip3 install gdown --break-system-packages || pip3 install gdown
+          gdown --id 1-gW5N8kjjI6XUw8Ft78Yf0y8U-OYHd3Z -O game.zip
+
       - name: Restore Clean Upstream Files
         run: |
           echo "Restoring clean upstream repository files..."
@@ -84,9 +89,10 @@ jobs:
 
       - name: Run Build Script and Package IPA
         run: |
+          mv game.zip muguet-0.1/game.zip
           cd muguet-0.1
           chmod +x make-ios.sh
-          ./make-ios.sh --ipa
+          ./make-ios.sh game.zip --ipa
 
       - name: Locate and Collect .IPA File
         run: |
