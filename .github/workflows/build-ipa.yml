@@ -15,10 +15,15 @@ jobs:
 
       - name: Restore Complete Upstream Vendor Files
         run: |
-          # سحب ملفات vendor/wgpu-core الناقصة تلقائياً
           git clone --depth 1 https://github.com/c22dev/muguet.git upstream_muguet
           cp -r upstream_muguet/vendor/* muguet-0.1/vendor/ || true
           rm -rf upstream_muguet
+
+      - name: Fix Swift Syntax Error in Launcher.swift
+        run: |
+          # تصحيح خطأ glassProminent المتروك في سورس المطور
+          find muguet-0.1 -name "Launcher.swift" -exec sed -i '' 's/\.glassProminent/\.borderedProminent/g' {} +
+          find muguet-0.1 -name "Launcher.swift" -exec sed -i '' 's/iOS 26\.0/iOS 17\.0/g' {} +
 
       - name: Install Dependencies (xcodegen)
         run: |
