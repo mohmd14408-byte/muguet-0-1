@@ -19,40 +19,14 @@ jobs:
           cp -r upstream_muguet/vendor/* muguet-0.1/vendor/ || true
           rm -rf upstream_muguet
 
-      - name: Clean and Patch Launcher.swift View
+      - name: Fix Launcher Swift File
         run: |
-          python3 -c '
-          import os
-          path = "muguet-0.1/ios/Launcher.swift"
-          if os.path.exists(path):
-              with open(path, "r") as f:
-                  content = f.read()
-              bad_block = """    @ViewBuilder var playButton: some View {
-        let button = Button(action: start) {
-            Text("Play").font(.title3.weight(.semibold)).frame(maxWidth: 220)
-        }
-        .controlSize(.large)
-        if #available(iOS 26.0, *) {
-            button.buttonStyle(.glassProminent)
-        } else {
-            button.buttonStyle(.borderedProminent)
-        }
-    }"""
-              good_block = """    @ViewBuilder var playButton: some View {
-        Button(action: start) {
-            Text("Play").font(.title3.weight(.semibold)).frame(maxWidth: 220)
-        }
-        .controlSize(.large)
-        .buttonStyle(.borderedProminent)
-    }"""
-              content = content.replace(bad_block, good_block)
-              content = content.replace(".glassProminent", ".borderedProminent")
-              with open(path, "w") as f:
-                  f.write(content)
-              print("Patched Launcher.swift successfully")
-          '
+          TARGET_FILE="$(find . -name "Launcher.swift" | head -1)"
+          echo "Found Launcher at: $TARGET_FILE"
+          sed -i '' 's/button\.buttonStyle(\.glassProminent)/button\.buttonStyle(\.borderedProminent)/g' "$TARGET_FILE"
+          grep -n "buttonStyle" "$TARGET_FILE"
 
-      - name: Install Dependencies (xcodegen)
+      - name: Install Dependencies
         run: |
           brew install xcodegen || true
 
