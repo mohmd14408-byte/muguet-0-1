@@ -15,15 +15,40 @@ jobs:
 
       - name: Restore Complete Upstream Vendor Files
         run: |
+          echo "Restoring upstream vendor files..."
           git clone --depth 1 https://github.com/c22dev/muguet.git upstream_muguet
+          mkdir -p muguet-0.1/vendor
           cp -r upstream_muguet/vendor/* muguet-0.1/vendor/ || true
           rm -rf upstream_muguet
 
-      - name: Fix Launcher Swift File
+      - name: Clean and Fix Swift Files for iOS 15+
         run: |
-          python3 -c "import pathlib; [p.write_text(p.read_text().replace('glassProminent', 'borderedProminent')) for p in pathlib.Path('.').rglob('*.swift')]"
-          echo "Verifying Launcher.swift fix:"
+          python3 -c "
+          import pathlib, re
+
+          for p in pathlib.Path('.').rglob('*.swift'):
+              content = p.read_text(encoding='utf-8')
+              orig = content
+              # 1. Replace any glassProminent style with standard borderedProminent
+              content = content.replace('.glassProminent', '.borderedProminent')
+              content = content.replace('glassProminent', 'borderedProminent')
+              # 2. Fix the iOS 26 style conditional block to always use borderedProminent
+              pattern = r'if #available\(iOS 26\.0, \*\)\s*\{\s*button\.buttonStyle\([^)]+\)\s*\}\s*else\s*\{\s*button\.buttonStyle\([^)]+\)\s*\}'
+              content = re.sub(pattern, 'button.buttonStyle(.borderedProminent)', content)
+              if content != orig:
+                  p.write_text(content, encoding='utf-8')
+                  print(f'Successfully fixed: {p}')
+          "
+          echo "Swift check:"
           grep -n "buttonStyle" muguet-0.1/ios/Launcher.swift || true
+
+      - name: Patch Build Script for Verbose Logging
+        run: |
+          # Patch make-ios.sh: remove -quiet to see full Xcode logs & fix cp for non-APFS
+          sed -i.bak 's/xcodebuild -quiet/xcodebuild/g' muguet-0.1/make-ios.sh || true
+          sed -i.bak 's/cp -cRp/cp -Rp/g' muguet-0.1/make-ios.sh || true
+          sed -i.bak 's/TOOLCHAIN=1.98.1/TOOLCHAIN=stable/g' muguet-0.1/make-ios.sh || true
+          sed -i.bak 's/"+\$TOOLCHAIN"//g' muguet-0.1/make-ios.sh || true
 
       - name: Install Dependencies
         run: |
@@ -34,8 +59,6 @@ jobs:
           rustup toolchain install 1.98.1 || true
           rustup target add aarch64-apple-ios --toolchain 1.98.1 || true
           rustup target add aarch64-apple-ios || true
-          sed -i '' 's/TOOLCHAIN=1.98.1/TOOLCHAIN=stable/g' muguet-0.1/make-ios.sh || true
-          sed -i '' 's/"+\$TOOLCHAIN"//g' muguet-0.1/make-ios.sh || true
 
       - name: Run Build Script and Package IPA
         run: |
