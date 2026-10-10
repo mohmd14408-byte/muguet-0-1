@@ -17,7 +17,7 @@ jobs:
       - name: Install gdown and Download game.zip
         run: |
           pip3 install gdown --break-system-packages || pip3 install gdown
-          gdown --id 1-gW5N8kjjI6XUw8Ft78Yf0y8U-OYHd3Z -O game.zip
+          gdown "1-gW5N8kjjI6XUw8Ft78Yf0y8U-OYHd3Z" -O game.zip
 
       - name: Restore Clean Upstream Files
         run: |
@@ -49,61 +49,4 @@ jobs:
           print('Successfully patched Launcher.swift')
           "
           echo "Checking Launcher.swift playButton:"
-          sed -n '180,205p' muguet-0.1/ios/Launcher.swift
-
-      - name: Patch Build Scripts for CI
-        run: |
-          python3 -c "
-          import pathlib
-          
-          # 1. Patch make-ios.sh
-          sh_path = pathlib.Path('muguet-0.1/make-ios.sh')
-          sh_text = sh_path.read_text(encoding='utf-8')
-          sh_text = sh_text.replace('export PATH=\"/opt/homebrew/opt/rustup/bin:\$PATH\"', 'export PATH=\"\$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:\$PATH\"')
-          sh_text = sh_text.replace('cp -cRp', 'cp -Rp')
-          sh_text = sh_text.replace('xcodebuild -quiet', 'xcodebuild')
-          sh_text = sh_text.replace('cargo \"+\$TOOLCHAIN\"', 'cargo')
-          sh_path.write_text(sh_text, encoding='utf-8')
-          print('Patched make-ios.sh')
-          
-          # 2. Patch build.rs
-          rs_path = pathlib.Path('muguet-0.1/build.rs')
-          rs_text = rs_path.read_text(encoding='utf-8')
-          old_run = 'let status = Command::new(&swiftc)'
-          new_run = 'let output = Command::new(&swiftc)'
-          if old_run in rs_text:
-              rs_text = rs_text.replace('.status()', '.output()').replace(old_run, new_run)
-              rs_text = rs_text.replace('assert!(status.success(), \"swiftc failed\");', 'if !output.status.success() { eprintln!(\"=== SWIFTC ERROR ===\\n{}\", String::from_utf8_lossy(&output.stderr)); panic!(\"swiftc failed\"); }')
-              rs_path.write_text(rs_text, encoding='utf-8')
-              print('Patched build.rs')
-          "
-
-      - name: Install Dependencies
-        run: |
-          brew install xcodegen || true
-
-      - name: Setup Rust & iOS Target
-        run: |
-          rustup target add aarch64-apple-ios
-          rustup default stable || true
-
-      - name: Run Build Script and Package IPA
-        run: |
-          mv game.zip muguet-0.1/game.zip
-          cd muguet-0.1
-          chmod +x make-ios.sh
-          ./make-ios.sh game.zip --ipa
-
-      - name: Locate and Collect .IPA File
-        run: |
-          mkdir -p output_ipa
-          find . -name '*.ipa' -exec cp -v {} output_ipa/ \;
-          echo 'Collected files:'
-          ls -la output_ipa/
-
-      - name: Upload Ready iOS IPA
-        uses: actions/upload-artifact@v4
-        with:
-          name: Muguet-GTAV-iOS-IPA
-          path: output_ipa/*.ipa
-          retention-days: 14
+          sed
