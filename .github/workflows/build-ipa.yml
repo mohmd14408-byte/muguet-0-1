@@ -17,17 +17,21 @@ jobs:
         run: |
           brew install xcodegen || true
 
-      - name: Setup Rust & iOS Target
+      - name: Setup Rust & iOS Target (Toolchain 1.98.1)
         run: |
-          rustup update
-          rustup target add aarch64-apple-ios
+          # Install target for toolchain 1.98.1 and stable
+          rustup toolchain install 1.98.1 || true
+          rustup target add aarch64-apple-ios --toolchain 1.98.1 || true
+          rustup target add aarch64-apple-ios || true
+          # Remove hardcoded toolchain restriction to prevent mismatch
+          sed -i '' 's/TOOLCHAIN=1.98.1/TOOLCHAIN=stable/g' muguet-0.1/make-ios.sh || true
+          sed -i '' 's/"+\$TOOLCHAIN"//g' muguet-0.1/make-ios.sh || true
 
       - name: Run Build Script and Package IPA
         run: |
           cd muguet-0.1 || cd muguet* || cd .
           chmod +x make-ios.sh
-          # Build in sideloadable unsigned .ipa mode
-          ./make-ios.sh --ipa || bash make-ios.sh --ipa
+          ./make-ios.sh --ipa
 
       - name: Locate and Collect .IPA File
         run: |
