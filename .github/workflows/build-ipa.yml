@@ -92,7 +92,8 @@ jobs:
           mv game.zip muguet-0.1/game.zip
           cd muguet-0.1
           chmod +x make-ios.sh
-          ./make-ios.sh game.zip --ipa
+          # إرسال أمر التخطي الآمن لتجاوز التعليق عند الداتا الفاضية
+          ./make-ios.sh game.zip --ipa < /dev/null
 
       - name: Locate and Collect .IPA File
         run: |
